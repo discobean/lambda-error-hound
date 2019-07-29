@@ -7,7 +7,7 @@ var list        = require('./lib/list.js')
 var errorWindow = require('./lib/errorWindow.js')
 
 var aws     = require('aws-sdk')
-var cwl     = Promise.promisifyAll(new aws.CloudWatchLogs({region: options.argv.region }))
+var cwl     = new aws.CloudWatchLogs({region: options.argv.region })
 
 if (options.argv._[0] === 'list')
   if (options.argv.f)
@@ -29,12 +29,12 @@ if (options.argv.interval) {
 }
 
 function getStreams (min, max, accumulator, nextToken) {
-  return cwl.describeLogStreamsAsync({
+  return Promise.resolve(cwl.describeLogStreams({
     logGroupName: logGroupName,
     descending: true,
     orderBy: 'LastEventTime',
     nextToken: nextToken
-  }).then(function (results) {
+  }).promise()).then(function (results) {
     var filtered = results.logStreams.filter(function (ls) {
       return (ls.lastEventTimestamp >= min && ls.firstEventTimestamp <= max)
     })
@@ -117,13 +117,13 @@ windowList.then(function (windowList) {
   var streamsRead = 0
   return Promise.map(errorWindow.streams, function (stream, streamIndex, totalStreams) {
     
-    return Promise.join(cwl.getLogEventsAsync({
+    return Promise.join(cwl.getLogEvents({
       logGroupName: logGroupName,
       logStreamName: stream,
       endTime: errorWindow.max,
       startTime: errorWindow.min,
       startFromHead: true
-    }), Promise.delay(1000)) // Promise.delay(1000) getLogEvents api calls are limited to 10 per second
+    }).promise(), Promise.delay(1000)) // Promise.delay(1000) getLogEvents api calls are limited to 10 per second
     .spread(function (results){
       process.stderr.write('Error ' + (index + 1) + ' of ' + length + ' stream ' + (++streamsRead) + ' of ' + totalStreams + '   \r')
 
